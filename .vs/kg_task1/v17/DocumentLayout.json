@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\burla\\OneDrive - Peter the Great St. Petersburg Polytechnical University\\\u0420\u0430\u0431\u043E\u0447\u0438\u0439 \u0441\u0442\u043E\u043B\\kg_1\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{87BFE739-1FC6-4275-90CC-5BDFD2FA4CE7}|kg_task1\\kg_task1.vcxproj|C:\\Users\\burla\\OneDrive - Peter the Great St. Petersburg Polytechnical University\\\u0420\u0430\u0431\u043E\u0447\u0438\u0439 \u0441\u0442\u043E\u043B\\kg_1\\kg_task1\\Dx11App.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{87BFE739-1FC6-4275-90CC-5BDFD2FA4CE7}|kg_task1\\kg_task1.vcxproj|solutionrelative:kg_task1\\Dx11App.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Dx11App.h",
+              "DocumentMoniker": "C:\\Users\\burla\\OneDrive - Peter the Great St. Petersburg Polytechnical University\\\u0420\u0430\u0431\u043E\u0447\u0438\u0439 \u0441\u0442\u043E\u043B\\kg_1\\kg_task1\\Dx11App.h",
+              "RelativeDocumentMoniker": "kg_task1\\Dx11App.h",
+              "ToolTip": "C:\\Users\\burla\\OneDrive - Peter the Great St. Petersburg Polytechnical University\\\u0420\u0430\u0431\u043E\u0447\u0438\u0439 \u0441\u0442\u043E\u043B\\kg_1\\kg_task1\\Dx11App.h",
+              "RelativeToolTip": "kg_task1\\Dx11App.h",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2026-02-13T16:11:57.386Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
