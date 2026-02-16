@@ -1,0 +1,12 @@
+.vs/
+*.suo
+*.user
+ipch/
+*.vcxproj.user
+*.vcxproj.filters
+*.sdf
+*.opensdf
+*.cache
+# temporary build outputs
+bin/
+obj/
