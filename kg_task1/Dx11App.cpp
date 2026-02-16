@@ -15,7 +15,7 @@ bool Dx11App::Init(HWND hwnd, int width, int height)
     sd.OutputWindow = hwnd;
     sd.SampleDesc.Count = 1;
     sd.Windowed = TRUE;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
     UINT flags = 0;
 #ifdef _DEBUG
