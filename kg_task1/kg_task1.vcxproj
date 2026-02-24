@@ -111,6 +111,10 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>d3d11.lib;dxgi.lib;dxguid.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>if not exist "$(OutDir)shaders" mkdir "$(OutDir)shaders"
+xcopy /Y /I "$(ProjectDir)shaders\*.*" "$(OutDir)shaders\"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
