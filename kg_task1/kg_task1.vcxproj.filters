@@ -28,7 +28,11 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="shaders\triangle.ps.hlsl" />
-    <FxCompile Include="shaders\triangle.vs.hlsl" />
+    <Text Include="cube.ps.hlsl">
+      <Filter>Исходные файлы</Filter>
+    </Text>
+    <Text Include="cube.vs.hlsl">
+      <Filter>Исходные файлы</Filter>
+    </Text>
   </ItemGroup>
 </Project>

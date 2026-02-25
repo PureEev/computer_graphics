@@ -4,11 +4,23 @@
 Dx11App g_app;
 int g_width = 1280;
 int g_height = 720;
+POINT lastMouse{};
+bool first = true;
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
+    case WM_MOUSEMOVE:
+    {
+        POINT p{ LOWORD(lParam), HIWORD(lParam) };
+        if (!first)
+            g_app.OnMouseMove(p.x - lastMouse.x, p.y - lastMouse.y);
+        lastMouse = p;
+        first = false;
+        return 0;
+    }
+
     case WM_SIZE:
         g_width = LOWORD(lParam);
         g_height = HIWORD(lParam);
@@ -28,15 +40,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInst;
     wc.lpszClassName = L"App";
-
     RegisterClass(&wc);
 
-    HWND hwnd = CreateWindow(
-        wc.lpszClassName,
-        L"App",
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        g_width, g_height,
+    HWND hwnd = CreateWindow(wc.lpszClassName, L"DX11 Cube",
+        WS_OVERLAPPEDWINDOW, 100, 100, g_width, g_height,
         nullptr, nullptr, hInst, nullptr);
 
     ShowWindow(hwnd, SW_SHOW);
@@ -53,9 +60,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
             DispatchMessage(&msg);
         }
         else
-        {
             g_app.Render();
-        }
     }
 
     g_app.Cleanup();
