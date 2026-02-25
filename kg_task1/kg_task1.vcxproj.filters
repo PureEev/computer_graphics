@@ -27,4 +27,8 @@
       <Filter>Исходные файлы</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="shaders\triangle.ps.hlsl" />
+    <FxCompile Include="shaders\triangle.vs.hlsl" />
+  </ItemGroup>
 </Project>
