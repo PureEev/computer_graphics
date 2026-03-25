@@ -28,11 +28,9 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="cube.ps.hlsl">
-      <Filter>Исходные файлы</Filter>
-    </Text>
-    <Text Include="cube.vs.hlsl">
-      <Filter>Исходные файлы</Filter>
-    </Text>
+    <FxCompile Include="cube.vs.hlsl" />
+    <FxCompile Include="cube.ps.hlsl" />
+    <FxCompile Include="skybox.vs.hlsl" />
+    <FxCompile Include="skybox.ps.hlsl" />
   </ItemGroup>
 </Project>

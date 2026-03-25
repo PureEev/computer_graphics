@@ -1,9 +1,11 @@
-﻿#include <windows.h>
+#include <windows.h>
 #include "Dx11App.h"
 
 Dx11App g_app;
+
 int g_width = 1280;
 int g_height = 720;
+
 POINT lastMouse{};
 bool first = true;
 
@@ -13,20 +15,18 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
     case WM_MOUSEMOVE:
     {
-        POINT p{ LOWORD(lParam), HIWORD(lParam) };
+        POINT p{ LOWORD(lParam),HIWORD(lParam) };
         if (!first)
             g_app.OnMouseMove(p.x - lastMouse.x, p.y - lastMouse.y);
         lastMouse = p;
         first = false;
         return 0;
     }
-
     case WM_SIZE:
         g_width = LOWORD(lParam);
         g_height = HIWORD(lParam);
         g_app.OnResize(g_width, g_height);
         return 0;
-
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
@@ -39,10 +39,12 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int)
     WNDCLASS wc{};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInst;
-    wc.lpszClassName = L"App";
+    wc.lpszClassName = L"DXAPP";
+
     RegisterClass(&wc);
 
-    HWND hwnd = CreateWindow(wc.lpszClassName, L"DX11 Cube",
+    HWND hwnd = CreateWindow(
+        wc.lpszClassName, L"DX11 Textured Cube and Skybox",
         WS_OVERLAPPEDWINDOW, 100, 100, g_width, g_height,
         nullptr, nullptr, hInst, nullptr);
 
