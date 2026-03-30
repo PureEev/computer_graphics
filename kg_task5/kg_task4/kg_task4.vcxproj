@@ -133,20 +133,24 @@ copy "$(ProjectDir)*.dds" "$(TargetDir)"</Command>
   <ItemGroup>
     <ClInclude Include="Dx11App.h" />
   </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="cube.ps.hlsl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-    <FxCompile Include="cube.vs.hlsl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-    <FxCompile Include="skybox.ps.hlsl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-    <FxCompile Include="skybox.vs.hlsl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-  </ItemGroup>
+<ItemGroup>
+  <FxCompile Include="cube.vs.hlsl">
+    <ShaderType>Vertex</ShaderType>
+    <EntryPointName>vs</EntryPointName>
+  </FxCompile>
+  <FxCompile Include="cube.ps.hlsl">
+    <ShaderType>Pixel</ShaderType>
+    <EntryPointName>ps</EntryPointName>
+  </FxCompile>
+  <FxCompile Include="skybox.vs.hlsl">
+    <ShaderType>Vertex</ShaderType>
+    <EntryPointName>vs</EntryPointName>
+  </FxCompile>
+  <FxCompile Include="skybox.ps.hlsl">
+    <ShaderType>Pixel</ShaderType>
+    <EntryPointName>ps</EntryPointName>
+  </FxCompile>
+</ItemGroup>
   <ItemGroup>
     <Image Include="Pug.dds" />
   </ItemGroup>
