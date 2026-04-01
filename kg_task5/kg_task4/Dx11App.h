@@ -22,21 +22,32 @@ struct TextureDesc {
 struct Vertex {
     float x, y, z;
     float u, v;
+    float nx, ny, nz;
+    float tx, ty, tz;
 };
 
 struct SkyboxVertex {
     float x, y, z;
 };
 
+struct Light {
+    DirectX::XMFLOAT4 pos;
+    DirectX::XMFLOAT4 color;
+};
+
 struct GeomBuffer {
     DirectX::XMMATRIX m;
     DirectX::XMFLOAT4 size;
-    DirectX::XMFLOAT4 color; 
+    DirectX::XMFLOAT4 color;
+    DirectX::XMFLOAT4 shine;
 };
 
 struct SceneBuffer {
     DirectX::XMMATRIX vp;
     DirectX::XMFLOAT4 cameraPos;
+    DirectX::XMINT4 lightCount;
+    DirectX::XMFLOAT4 ambientColor;
+    Light lights[10];
 };
 
 class Dx11App
@@ -88,6 +99,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_sceneBuffer;
 
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_cubeTextureView;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_normalMapTextureView;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_skyboxTextureView;
     Microsoft::WRL::ComPtr<ID3D11SamplerState> m_samplerState;
 

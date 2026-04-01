@@ -133,24 +133,28 @@ copy "$(ProjectDir)*.dds" "$(TargetDir)"</Command>
   <ItemGroup>
     <ClInclude Include="Dx11App.h" />
   </ItemGroup>
-<ItemGroup>
-  <FxCompile Include="cube.vs.hlsl">
-    <ShaderType>Vertex</ShaderType>
-    <EntryPointName>vs</EntryPointName>
-  </FxCompile>
-  <FxCompile Include="cube.ps.hlsl">
-    <ShaderType>Pixel</ShaderType>
-    <EntryPointName>ps</EntryPointName>
-  </FxCompile>
-  <FxCompile Include="skybox.vs.hlsl">
-    <ShaderType>Vertex</ShaderType>
-    <EntryPointName>vs</EntryPointName>
-  </FxCompile>
-  <FxCompile Include="skybox.ps.hlsl">
-    <ShaderType>Pixel</ShaderType>
-    <EntryPointName>ps</EntryPointName>
-  </FxCompile>
-</ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="cube.vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>vs</EntryPointName>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="cube.ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>ps</EntryPointName>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="skybox.vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+      <EntryPointName>vs</EntryPointName>
+    </FxCompile>
+    <FxCompile Include="skybox.ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+      <EntryPointName>ps</EntryPointName>
+    </FxCompile>
+  </ItemGroup>
   <ItemGroup>
     <Image Include="Pug.dds" />
   </ItemGroup>
