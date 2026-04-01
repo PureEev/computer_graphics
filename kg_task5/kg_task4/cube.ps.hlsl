@@ -2,12 +2,14 @@ Texture2D colorTexture : register(t0);
 Texture2D normalMapTexture : register(t1);
 SamplerState colorSampler : register(s0);
 
-// Тот же буфер
+struct InstanceData {
+    matrix m;
+    float4 colorInst;
+    float4 shineInst;
+};
+
 cbuffer GeomBufferInst : register(b0) {
-    matrix m[100];
-    float4 size[100];
-    float4 colorInst[100];
-    float4 shineInst[100];
+    InstanceData instances[100];
 };
 
 struct Light {
@@ -40,7 +42,7 @@ float4 ps(PS_IN pixel) : SV_TARGET{
     uint idx = pixel.instanceId;
 
     float4 texColor = colorTexture.Sample(colorSampler, pixel.uv);
-    float3 albedo = texColor.rgb * colorInst[idx].rgb;
+    float3 albedo = texColor.rgb * instances[idx].colorInst.rgb;
 
     float3 finalColor = ambientColor.rgb * albedo;
 
@@ -66,11 +68,11 @@ float4 ps(PS_IN pixel) : SV_TARGET{
 
         float3 reflectDir = reflect(-lightDir, normal);
         float spec = 0.0f;
-        if (shineInst[idx].x > 0) {
-            spec = pow(max(dot(viewDir, reflectDir), 0.0f), shineInst[idx].x);
+        if (instances[idx].shineInst.x > 0) {
+            spec = pow(max(dot(viewDir, reflectDir), 0.0f), instances[idx].shineInst.x);
         }
         finalColor += albedo * spec * atten * lights[i].color.rgb;
     }
 
-    return float4(finalColor, texColor.a * colorInst[idx].a);
+    return float4(finalColor, texColor.a * instances[idx].colorInst.a);
 }

@@ -10,7 +10,6 @@
 
 using namespace DirectX;
 
-// Структуры для DDS (остаются как были)
 struct DDS_PIXELFORMAT {
     uint32_t dwSize; uint32_t dwFlags; uint32_t dwFourCC; uint32_t dwRGBBitCount;
     uint32_t dwRBitMask; uint32_t dwGBitMask; uint32_t dwBBitMask; uint32_t dwABitMask;
@@ -34,31 +33,18 @@ UINT32 Dx11App::GetBytesPerBlock(DXGI_FORMAT fmt) {
 bool Dx11App::LoadDDS(const wchar_t* filename, TextureDesc& desc, bool isCubemap) {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file.is_open()) return false;
-
-    size_t fileSize = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    uint32_t magic;
-    file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+    size_t fileSize = file.tellg(); file.seekg(0, std::ios::beg);
+    uint32_t magic; file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
     if (magic != DDS_MAGIC) return false;
-
-    DDS_HEADER header;
-    file.read(reinterpret_cast<char*>(&header), sizeof(header));
-
-    desc.width = header.dwWidth;
-    desc.height = header.dwHeight;
+    DDS_HEADER header; file.read(reinterpret_cast<char*>(&header), sizeof(header));
+    desc.width = header.dwWidth; desc.height = header.dwHeight;
     desc.mipmapsCount = header.dwMipMapCount == 0 ? 1 : header.dwMipMapCount;
-
     if (header.ddspf.dwFourCC == 0x31545844) desc.fmt = DXGI_FORMAT_BC1_UNORM;
     else if (header.ddspf.dwFourCC == 0x33545844) desc.fmt = DXGI_FORMAT_BC2_UNORM;
     else if (header.ddspf.dwFourCC == 0x35545844) desc.fmt = DXGI_FORMAT_BC3_UNORM;
     else desc.fmt = DXGI_FORMAT_R8G8B8A8_UNORM;
-
     size_t dataSize = fileSize - sizeof(magic) - sizeof(header);
-    char* data = new char[dataSize];
-    file.read(data, dataSize);
-    desc.pData = data;
-
+    char* data = new char[dataSize]; file.read(data, dataSize); desc.pData = data;
     return true;
 }
 
@@ -73,11 +59,9 @@ bool Dx11App::Init(HWND hwnd, int width, int height) {
         return false;
 
     CreateRenderTarget(); OnResize(width, height);
-
     if (!InitCube()) return false;
     if (!InitSkybox()) return false;
     if (!LoadTextures()) return false;
-
     return true;
 }
 
@@ -99,21 +83,16 @@ void Dx11App::OnResize(int width, int height) {
     m_swapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
     CreateRenderTarget();
 
-    // Depth буфер
     D3D11_TEXTURE2D_DESC depthDesc{};
     depthDesc.Width = width; depthDesc.Height = height;
-    depthDesc.MipLevels = 1; depthDesc.ArraySize = 1;
-    depthDesc.Format = DXGI_FORMAT_D32_FLOAT;
+    depthDesc.MipLevels = 1; depthDesc.ArraySize = 1; depthDesc.Format = DXGI_FORMAT_D32_FLOAT;
     depthDesc.SampleDesc.Count = 1; depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
     m_device->CreateTexture2D(&depthDesc, nullptr, m_depth.GetAddressOf());
     m_device->CreateDepthStencilView(m_depth.Get(), nullptr, m_dsv.GetAddressOf());
 
-    // Текстура для Постпроцессинга
     D3D11_TEXTURE2D_DESC ppDesc{};
-    ppDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    ppDesc.Width = width; ppDesc.Height = height;
-    ppDesc.ArraySize = 1; ppDesc.MipLevels = 1;
-    ppDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    ppDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; ppDesc.Width = width; ppDesc.Height = height;
+    ppDesc.ArraySize = 1; ppDesc.MipLevels = 1; ppDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
     ppDesc.SampleDesc.Count = 1;
     m_device->CreateTexture2D(&ppDesc, nullptr, m_postProcessTex.GetAddressOf());
     m_device->CreateRenderTargetView(m_postProcessTex.Get(), nullptr, m_postProcessRTV.GetAddressOf());
@@ -143,7 +122,7 @@ void Dx11App::Render() {
     m_time = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - start).count();
 
     XMMATRIX camRot = XMMatrixRotationRollPitchYaw(m_camPitch, m_camYaw, 0);
-    m_cameraPos = XMVector3TransformCoord(XMVectorSet(0, 5, -15, 1), camRot);
+    m_cameraPos = XMVector3TransformCoord(XMVectorSet(0, 5, -20, 1), camRot);
 
     XMMATRIX v = XMMatrixLookAtLH(m_cameraPos, XMVectorZero(), XMVectorSet(0, 1, 0, 0));
     XMMATRIX p = XMMatrixPerspectiveFovLH(XM_PI / 3.0f, (float)m_width / m_height, 100.0f, 0.1f);
@@ -151,19 +130,12 @@ void Dx11App::Render() {
     D3D11_MAPPED_SUBRESOURCE mapped;
     m_context->Map(m_sceneBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     SceneBuffer* sb = (SceneBuffer*)mapped.pData;
-
     sb->vp = XMMatrixTranspose(v * p);
     XMStoreFloat4(&sb->cameraPos, m_cameraPos);
+    sb->ambientColor = { 0.15f, 0.15f, 0.2f, 1.0f }; sb->lightCount = { 1, 0, 0, 0 };
 
-    sb->ambientColor = { 0.15f, 0.15f, 0.2f, 1.0f };
-    sb->lightCount = { 1, 0, 0, 0 };
-
-    float lightX = 4.0f * sinf(m_time * 1.5f);
-    float lightZ = 4.0f * cosf(m_time * 1.5f);
-
-    sb->lights[0].pos = { lightX, 5.0f, lightZ, 1.0f };
-    sb->lights[0].color = { 30.0f, 28.0f, 26.0f, 1.0f };
-
+    float lightX = 4.0f * sinf(m_time * 1.5f); float lightZ = 4.0f * cosf(m_time * 1.5f);
+    sb->lights[0].pos = { lightX, 5.0f, lightZ, 1.0f }; sb->lights[0].color = { 30.0f, 28.0f, 26.0f, 1.0f };
     m_context->Unmap(m_sceneBuffer.Get(), 0);
 
     float clear[4] = { 0.1f, 0.1f, 0.2f, 1 };
@@ -171,46 +143,32 @@ void Dx11App::Render() {
     m_context->ClearRenderTargetView(m_postProcessRTV.Get(), clear);
     m_context->ClearDepthStencilView(m_dsv.Get(), D3D11_CLEAR_DEPTH, 0.0f, 0);
 
-    // --- Frustum ---
     XMMATRIX vpMatrix = v * p;
-    XMFLOAT4X4 vpF;
-    XMStoreFloat4x4(&vpF, vpMatrix);
-
+    XMFLOAT4X4 vpF; XMStoreFloat4x4(&vpF, vpMatrix);
     XMFLOAT4 frustum[6] = {
-        { vpF._41 + vpF._11, vpF._42 + vpF._12, vpF._43 + vpF._13, vpF._44 + vpF._14 },
-        { vpF._41 - vpF._11, vpF._42 - vpF._12, vpF._43 - vpF._13, vpF._44 - vpF._14 },
-        { vpF._41 + vpF._21, vpF._42 + vpF._22, vpF._43 + vpF._23, vpF._44 + vpF._24 },
-        { vpF._41 - vpF._21, vpF._42 - vpF._22, vpF._43 - vpF._23, vpF._44 - vpF._24 },
-        { vpF._31,           vpF._32,           vpF._33,           vpF._34           },
-        { vpF._41 - vpF._31, vpF._42 - vpF._32, vpF._43 - vpF._33, vpF._44 - vpF._34 }
+        { vpF._14 + vpF._11, vpF._24 + vpF._21, vpF._34 + vpF._31, vpF._44 + vpF._41 },
+        { vpF._14 - vpF._11, vpF._24 - vpF._21, vpF._34 - vpF._31, vpF._44 - vpF._41 },
+        { vpF._14 + vpF._12, vpF._24 + vpF._22, vpF._34 + vpF._32, vpF._44 + vpF._42 },
+        { vpF._14 - vpF._12, vpF._24 - vpF._22, vpF._34 - vpF._32, vpF._44 - vpF._42 },
+        { vpF._13,           vpF._23,           vpF._33,           vpF._43           },
+        { vpF._14 - vpF._13, vpF._24 - vpF._23, vpF._34 - vpF._33, vpF._44 - vpF._43 }
     };
 
     for (int i = 0; i < 6; i++) {
         float len = sqrt(frustum[i].x * frustum[i].x + frustum[i].y * frustum[i].y + frustum[i].z * frustum[i].z);
-        frustum[i].x /= len;
-        frustum[i].y /= len;
-        frustum[i].z /= len;
-        frustum[i].w /= len;
+        frustum[i].x /= len; frustum[i].y /= len; frustum[i].z /= len; frustum[i].w /= len;
     }
 
-    struct RenderObject {
-        XMVECTOR pos;
-        XMFLOAT4 color;
-        bool isTransparent;
-    };
-
+    struct RenderObject { XMVECTOR pos; XMFLOAT4 color; bool isTransparent; };
     std::vector<RenderObject> objects;
-
     for (int i = -2; i <= 2; i++) {
         for (int j = -2; j <= 2; j++) {
             objects.push_back({ XMVectorSet(i * 3.0f, 0, j * 3.0f, 1), {1,1,1,1}, false });
         }
     }
-
     objects.push_back({ XMVectorSet(0, 2, -2, 1), {1,1,1,0.5f}, true });
 
     UINT strideCube = sizeof(Vertex), offset = 0;
-
     m_context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &strideCube, &offset);
     m_context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
     m_context->IASetInputLayout(m_inputLayout.Get());
@@ -219,57 +177,39 @@ void Dx11App::Render() {
     m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
 
-    ID3D11ShaderResourceView* cubeRes[] = {
-        m_cubeTextureView.Get(),
-        m_normalMapTextureView.Get()
-    };
-
+    ID3D11ShaderResourceView* cubeRes[] = { m_cubeTextureView.Get(), m_normalMapTextureView.Get() };
     m_context->PSSetShaderResources(0, 2, cubeRes);
-
     ID3D11SamplerState* samplers[] = { m_samplerState.Get() };
     m_context->PSSetSamplers(0, 1, samplers);
 
     m_context->OMSetDepthStencilState(m_opaqueDSState.Get(), 0);
     m_context->OMSetBlendState(nullptr, nullptr, 0xffffffff);
 
-    ID3D11Buffer* vsCb[] = {
-        m_geomBufferInst.Get(),
-        m_sceneBuffer.Get(),
-        m_geomBufferInstVis.Get()
-    };
-
+    ID3D11Buffer* vsCb[] = { m_geomBufferInst.Get(), m_sceneBuffer.Get(), m_geomBufferInstVis.Get() };
     m_context->VSSetConstantBuffers(0, 3, vsCb);
     m_context->PSSetConstantBuffers(0, 3, vsCb);
 
     GeomBufferInst instData = {};
     GeomBufferInstVis visData = {};
-
     int visibleCount = 0;
     int totalIndex = 0;
-
-    bool useCulling = true;
 
     for (const auto& obj : objects) {
         if (obj.isTransparent || totalIndex >= 100) continue;
 
-        XMMATRIX m = XMMatrixRotationY(m_time * (1.0f + totalIndex * 0.1f)) *
-            XMMatrixTranslationFromVector(obj.pos);
-
-        XMFLOAT3 posF;
-        XMStoreFloat3(&posF, obj.pos);
-
+        XMMATRIX m = XMMatrixRotationY(m_time * (1.0f + totalIndex * 0.1f)) * XMMatrixTranslationFromVector(obj.pos);
+        XMFLOAT3 posF; XMStoreFloat3(&posF, obj.pos);
         XMFLOAT3 bbMin(posF.x - 1.8f, posF.y - 1.8f, posF.z - 1.8f);
         XMFLOAT3 bbMax(posF.x + 1.8f, posF.y + 1.8f, posF.z + 1.8f);
 
-        instData.m[totalIndex] = XMMatrixTranspose(m);
-        instData.color[totalIndex] = obj.color;
-        instData.shine[totalIndex] = { 32.0f, 0, 0, 0 };
+        instData.instances[totalIndex].m = XMMatrixTranspose(m);
+        instData.instances[totalIndex].color = obj.color;
+        instData.instances[totalIndex].shine = { 32.0f, 0, 0, 0 };
 
-        if (!useCulling || IsBoxInside(frustum, bbMin, bbMax)) {
+        if (IsBoxInside(frustum, bbMin, bbMax)) {
             visData.ids[visibleCount].x = totalIndex;
             visibleCount++;
         }
-
         totalIndex++;
     }
 
@@ -281,62 +221,40 @@ void Dx11App::Render() {
 
     // --- Skybox ---
     UINT strideSkybox = sizeof(SkyboxVertex);
-
     m_context->RSSetState(m_skyboxRSState.Get());
     m_context->IASetVertexBuffers(0, 1, m_skyboxVB.GetAddressOf(), &strideSkybox, &offset);
     m_context->IASetIndexBuffer(m_skyboxIB.Get(), DXGI_FORMAT_R16_UINT, 0);
     m_context->IASetInputLayout(m_skyboxLayout.Get());
-
     m_context->VSSetShader(m_skyboxVS.Get(), nullptr, 0);
     m_context->PSSetShader(m_skyboxPS.Get(), nullptr, 0);
-
     ID3D11ShaderResourceView* skyboxRes[] = { m_skyboxTextureView.Get() };
     m_context->PSSetShaderResources(0, 1, skyboxRes);
-
     m_context->OMSetDepthStencilState(m_skyboxDSState.Get(), 0);
 
-    float fov = XM_PI / 3.0f;
-    float nearPlane = 0.1f;
-
+    float fov = XM_PI / 3.0f; float nearPlane = 0.1f;
     float wSky = tanf(fov / 2.0f) * nearPlane * 2.0f;
     float hSky = ((float)m_height / m_width) * wSky;
+    float R = sqrtf(nearPlane * nearPlane + (wSky * 0.5f) * (wSky * 0.5f) + (hSky * 0.5f) * (hSky * 0.5f)) * 1.1f;
 
-    float R = sqrtf(
-        nearPlane * nearPlane +
-        (wSky * 0.5f) * (wSky * 0.5f) +
-        (hSky * 0.5f) * (hSky * 0.5f)
-    ) * 1.1f;
-
-    GeomBuffer gbSky;
-    gbSky.m = XMMatrixIdentity();
-    gbSky.size = { R, 0, 0, 0 };
-    gbSky.color = { 1,1,1,1 };
-
+    GeomBuffer gbSky; gbSky.m = XMMatrixIdentity(); gbSky.size = { R, 0, 0, 0 }; gbSky.color = { 1,1,1,1 };
     m_context->UpdateSubresource(m_geomBuffer.Get(), 0, nullptr, &gbSky, 0, 0);
-
     ID3D11Buffer* cbSky[] = { m_geomBuffer.Get(), m_sceneBuffer.Get() };
     m_context->VSSetConstantBuffers(0, 2, cbSky);
     m_context->PSSetConstantBuffers(0, 1, m_geomBuffer.GetAddressOf());
-
     m_context->DrawIndexed(m_skyboxIndexCount, 0, 0);
 
     // --- Transparent ---
     m_context->RSSetState(nullptr);
-
     m_context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &strideCube, &offset);
     m_context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
     m_context->IASetInputLayout(m_inputLayout.Get());
-
     m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-
     m_context->PSSetShaderResources(0, 2, cubeRes);
-
     m_context->OMSetDepthStencilState(m_transparentDSState.Get(), 0);
 
     float blendFactor[4] = { 0,0,0,0 };
     m_context->OMSetBlendState(m_alphaBlendState.Get(), blendFactor, 0xffffffff);
-
     m_context->VSSetConstantBuffers(0, 3, vsCb);
     m_context->PSSetConstantBuffers(0, 3, vsCb);
 
@@ -344,40 +262,31 @@ void Dx11App::Render() {
         if (!obj.isTransparent) continue;
 
         XMMATRIX m = XMMatrixRotationY(m_time) * XMMatrixTranslationFromVector(obj.pos);
-
-        GeomBufferInst transInst = {};
-        GeomBufferInstVis transVis = {};
-
-        transInst.m[0] = XMMatrixTranspose(m);
-        transInst.color[0] = obj.color;
-        transInst.shine[0] = { 32.0f, 0, 0, 0 };
-
+        GeomBufferInst transInst = {}; GeomBufferInstVis transVis = {};
+        transInst.instances[0].m = XMMatrixTranspose(m);
+        transInst.instances[0].color = obj.color;
+        transInst.instances[0].shine = { 32.0f, 0, 0, 0 };
         transVis.ids[0].x = 0;
 
         m_context->UpdateSubresource(m_geomBufferInst.Get(), 0, nullptr, &transInst, 0, 0);
         m_context->UpdateSubresource(m_geomBufferInstVis.Get(), 0, nullptr, &transVis, 0, 0);
-
         m_context->DrawIndexedInstanced(36, 1, 0, 0, 0);
     }
 
-    // --- Postprocess ---
+    // --- Postprocess (Сепия) ---
     m_context->OMSetRenderTargets(1, m_rtv.GetAddressOf(), nullptr);
-
     m_context->VSSetShader(m_postVS.Get(), nullptr, 0);
     m_context->PSSetShader(m_postPS.Get(), nullptr, 0);
 
     ID3D11ShaderResourceView* ppSRVs[] = { m_postProcessSRV.Get() };
     m_context->PSSetShaderResources(0, 1, ppSRVs);
-
     ID3D11SamplerState* ppSamplers[] = { m_samplerState.Get() };
     m_context->PSSetSamplers(0, 1, ppSamplers);
 
     m_context->IASetInputLayout(nullptr);
     m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
     m_context->OMSetDepthStencilState(nullptr, 0);
     m_context->OMSetBlendState(nullptr, nullptr, 0xffffffff);
-
     m_context->Draw(3, 0);
 
     ID3D11ShaderResourceView* nullSRVs[] = { nullptr };
@@ -391,79 +300,43 @@ void Dx11App::OnMouseMove(int dx, int dy) {
 }
 
 bool Dx11App::InitCube() {
-    // ... Оставь вершины и индексы V и I как у тебя в оригинале ...
     Vertex v[] = {
-        // Фронтальная грань (Z = -1) | Нормаль: (0,0,-1) | Касательная: (1,0,0)
         {-1.0f, -1.0f, -1.0f, 0.0f, 1.0f,  0.0f, 0.0f, -1.0f,  1.0f, 0.0f, 0.0f},
         {-1.0f,  1.0f, -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f,  1.0f, 0.0f, 0.0f},
         { 1.0f,  1.0f, -1.0f, 1.0f, 0.0f,  0.0f, 0.0f, -1.0f,  1.0f, 0.0f, 0.0f},
         { 1.0f, -1.0f, -1.0f, 1.0f, 1.0f,  0.0f, 0.0f, -1.0f,  1.0f, 0.0f, 0.0f},
-
-        // Задняя грань (Z = 1) | Нормаль: (0,0,1) | Касательная: (-1,0,0)
         { 1.0f, -1.0f,  1.0f, 0.0f, 1.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f},
         { 1.0f,  1.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f},
         {-1.0f,  1.0f,  1.0f, 1.0f, 0.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f},
         {-1.0f, -1.0f,  1.0f, 1.0f, 1.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f},
-
-        // Верхняя грань (Y = 1) | Нормаль: (0,1,0) | Касательная: (1,0,0)
         {-1.0f,  1.0f, -1.0f, 0.0f, 1.0f,  0.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
         {-1.0f,  1.0f,  1.0f, 0.0f, 0.0f,  0.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
         { 1.0f,  1.0f,  1.0f, 1.0f, 0.0f,  0.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
         { 1.0f,  1.0f, -1.0f, 1.0f, 1.0f,  0.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
-
-        // Нижняя грань (Y = -1) | Нормаль: (0,-1,0) | Касательная: (1,0,0)
         {-1.0f, -1.0f,  1.0f, 0.0f, 1.0f,  0.0f, -1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
         {-1.0f, -1.0f, -1.0f, 0.0f, 0.0f,  0.0f, -1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
         { 1.0f, -1.0f, -1.0f, 1.0f, 0.0f,  0.0f, -1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
         { 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,  0.0f, -1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
-
-        // Левая грань (X = -1) | Нормаль: (-1,0,0) | Касательная: (0,0,-1)
         {-1.0f, -1.0f,  1.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f},
         {-1.0f,  1.0f,  1.0f, 0.0f, 0.0f,  -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f},
         {-1.0f,  1.0f, -1.0f, 1.0f, 0.0f,  -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f},
         {-1.0f, -1.0f, -1.0f, 1.0f, 1.0f,  -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f},
-
-        // Правая грань (X = 1) | Нормаль: (1,0,0) | Касательная: (0,0,1)
         { 1.0f, -1.0f, -1.0f, 0.0f, 1.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
         { 1.0f,  1.0f, -1.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
         { 1.0f,  1.0f,  1.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
         { 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
     };
-
-    USHORT i[] = {
-        0, 1, 2, 0, 2, 3,       // Front
-        4, 5, 6, 4, 6, 7,       // Back
-        8, 9, 10, 8, 10, 11,    // Top
-        12, 13, 14, 12, 14, 15, // Bottom
-        16, 17, 18, 16, 18, 19, // Left
-        20, 21, 22, 20, 22, 23  // Right
-    };
+    USHORT i[] = { 0,1,2, 0,2,3, 4,5,6, 4,6,7, 8,9,10, 8,10,11, 12,13,14, 12,14,15, 16,17,18, 16,18,19, 20,21,22, 20,22,23 };
 
     D3D11_BUFFER_DESC bd{}; bd.Usage = D3D11_USAGE_IMMUTABLE; bd.BindFlags = D3D11_BIND_VERTEX_BUFFER; bd.ByteWidth = sizeof(v);
     D3D11_SUBRESOURCE_DATA sd{}; sd.pSysMem = v; m_device->CreateBuffer(&bd, &sd, m_vertexBuffer.GetAddressOf());
-
     bd.ByteWidth = sizeof(i); bd.BindFlags = D3D11_BIND_INDEX_BUFFER; sd.pSysMem = i; m_device->CreateBuffer(&bd, &sd, m_indexBuffer.GetAddressOf());
 
     Microsoft::WRL::ComPtr<ID3DBlob> vs, ps, err;
-    if (FAILED(D3DCompileFromFile(L"cube.vs.hlsl", nullptr, nullptr, "vs", "vs_5_0", 0, 0, vs.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) {
-        MessageBoxW(nullptr, L"Не удалось скомпилировать cube.vs.hlsl!", L"Ошибка", MB_OK); return false;
-    }
-    if (FAILED(D3DCompileFromFile(L"cube.ps.hlsl", nullptr, nullptr, "ps", "ps_5_0", 0, 0, ps.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) {
-        MessageBoxW(nullptr, L"Не удалось скомпилировать cube.ps.hlsl!", L"Ошибка", MB_OK); return false;
-    }
-
+    if (FAILED(D3DCompileFromFile(L"cube.vs.hlsl", nullptr, nullptr, "vs", "vs_5_0", 0, 0, vs.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) return false;
+    if (FAILED(D3DCompileFromFile(L"cube.ps.hlsl", nullptr, nullptr, "ps", "ps_5_0", 0, 0, ps.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) return false;
     m_device->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, m_vertexShader.GetAddressOf());
     m_device->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, m_pixelShader.GetAddressOf());
-
-    // Компиляция шейдеров для ПОСТПРОЦЕССИНГА
-    if (FAILED(D3DCompileFromFile(L"post.vs.hlsl", nullptr, nullptr, "vs", "vs_5_0", 0, 0, vs.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) {
-        MessageBoxW(nullptr, L"Не удалось скомпилировать post.vs.hlsl! Создай этот файл.", L"Ошибка", MB_OK); return false;
-    }
-    if (FAILED(D3DCompileFromFile(L"post.ps.hlsl", nullptr, nullptr, "ps", "ps_5_0", 0, 0, ps.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) {
-        MessageBoxW(nullptr, L"Не удалось скомпилировать post.ps.hlsl! Создай этот файл.", L"Ошибка", MB_OK); return false;
-    }
-    m_device->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, m_postVS.GetAddressOf());
-    m_device->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, m_postPS.GetAddressOf());
 
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -473,33 +346,27 @@ bool Dx11App::InitCube() {
     };
     m_device->CreateInputLayout(layout, 4, vs->GetBufferPointer(), vs->GetBufferSize(), m_inputLayout.GetAddressOf());
 
+    if (FAILED(D3DCompileFromFile(L"post.vs.hlsl", nullptr, nullptr, "vs", "vs_5_0", 0, 0, vs.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) return false;
+    if (FAILED(D3DCompileFromFile(L"post.ps.hlsl", nullptr, nullptr, "ps", "ps_5_0", 0, 0, ps.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) return false;
+    m_device->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, m_postVS.GetAddressOf());
+    m_device->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, m_postPS.GetAddressOf());
+
     bd = {}; bd.Usage = D3D11_USAGE_DEFAULT; bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
     bd.ByteWidth = sizeof(GeomBuffer); m_device->CreateBuffer(&bd, nullptr, m_geomBuffer.GetAddressOf());
-
-    // Новые буферы Инстансинга
     bd.ByteWidth = sizeof(GeomBufferInst); m_device->CreateBuffer(&bd, nullptr, m_geomBufferInst.GetAddressOf());
     bd.ByteWidth = sizeof(GeomBufferInstVis); m_device->CreateBuffer(&bd, nullptr, m_geomBufferInstVis.GetAddressOf());
-
     bd.Usage = D3D11_USAGE_DYNAMIC; bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; bd.ByteWidth = sizeof(SceneBuffer); m_device->CreateBuffer(&bd, nullptr, m_sceneBuffer.GetAddressOf());
 
     D3D11_DEPTH_STENCIL_DESC dsDesc{};
-    dsDesc.DepthEnable = TRUE;
-    dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-    dsDesc.DepthFunc = D3D11_COMPARISON_GREATER_EQUAL;
+    dsDesc.DepthEnable = TRUE; dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL; dsDesc.DepthFunc = D3D11_COMPARISON_GREATER_EQUAL;
     m_device->CreateDepthStencilState(&dsDesc, m_opaqueDSState.GetAddressOf());
-
     dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
     m_device->CreateDepthStencilState(&dsDesc, m_transparentDSState.GetAddressOf());
 
     D3D11_BLEND_DESC blendDesc{};
-    blendDesc.RenderTarget[0].BlendEnable = TRUE;
-    blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-    blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-    blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
-    blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    blendDesc.RenderTarget[0].BlendEnable = TRUE; blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA; blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD; blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE; blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+    blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD; blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
     m_device->CreateBlendState(&blendDesc, m_alphaBlendState.GetAddressOf());
 
     return true;
@@ -556,8 +423,7 @@ bool Dx11App::InitSkybox() {
 }
 
 bool Dx11App::LoadTextures() {
-    // Остается как было. Здесь загружаются Pug.dds, нормали и скайбокс
-    // ...
+    
     TextureDesc texDesc;
     if (!LoadDDS(L"Pug.dds", texDesc, false)) {
         return false;

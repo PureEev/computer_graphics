@@ -35,7 +35,7 @@ struct Light {
     DirectX::XMFLOAT4 color;
 };
 
-// Обычный буфер геометрии (оставлен для скайбокса)
+// Буфер для Скайбокса
 struct GeomBuffer {
     DirectX::XMMATRIX m;
     DirectX::XMFLOAT4 size;
@@ -43,15 +43,16 @@ struct GeomBuffer {
     DirectX::XMFLOAT4 shine;
 };
 
-// Буфер геометрии для ИНСТАНСИНГА
-struct GeomBufferInst {
-    DirectX::XMMATRIX m[100];
-    DirectX::XMFLOAT4 size[100];
-    DirectX::XMFLOAT4 color[100];
-    DirectX::XMFLOAT4 shine[100];
+struct InstanceData {
+    DirectX::XMMATRIX m;
+    DirectX::XMFLOAT4 color;
+    DirectX::XMFLOAT4 shine;
 };
 
-// Буфер видимых индексов
+struct GeomBufferInst {
+    InstanceData instances[100];
+};
+
 struct GeomBufferInstVis {
     DirectX::XMINT4 ids[100];
 };
@@ -95,7 +96,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_dsv;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_depth;
 
-    // Ресурсы для постпроцессинга
+    // Постпроцессинг
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_postProcessTex;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_postProcessRTV;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_postProcessSRV;
@@ -118,8 +119,8 @@ private:
     int m_skyboxIndexCount = 0;
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_geomBuffer;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_geomBufferInst;    // Инстансинг
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_geomBufferInstVis; // Frustum Culling
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_geomBufferInst;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_geomBufferInstVis;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_sceneBuffer;
 
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_cubeTextureView;
