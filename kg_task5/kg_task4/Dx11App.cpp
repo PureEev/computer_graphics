@@ -31,7 +31,7 @@ UINT32 Dx11App::GetBytesPerBlock(DXGI_FORMAT fmt) {
 
 bool Dx11App::LoadDDS(const wchar_t* filename, TextureDesc& desc, bool isCubemap) {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
-    if (!file.is_open()) return false; // Файл не найден
+    if (!file.is_open()) return false;
 
     size_t fileSize = file.tellg();
     file.seekg(0, std::ios::beg);
@@ -119,7 +119,6 @@ void Dx11App::Render() {
     m_cameraPos = XMVector3TransformCoord(XMVectorSet(0, 0, -8, 1), camRot);
 
     XMMATRIX v = XMMatrixLookAtLH(m_cameraPos, XMVectorZero(), XMVectorSet(0, 1, 0, 0));
-
     XMMATRIX p = XMMatrixPerspectiveFovLH(XM_PI / 3.0f, (float)m_width / m_height, 100.0f, 0.1f);
 
     D3D11_MAPPED_SUBRESOURCE mapped;
@@ -127,6 +126,16 @@ void Dx11App::Render() {
     SceneBuffer* sb = (SceneBuffer*)mapped.pData;
     sb->vp = XMMatrixTranspose(v * p);
     XMStoreFloat4(&sb->cameraPos, m_cameraPos);
+
+    sb->ambientColor = { 0.15f, 0.15f, 0.2f, 1.0f }; 
+    sb->lightCount = { 1, 0, 0, 0 }; 
+
+    float lightX = 4.0f * sinf(m_time * 1.5f);
+    float lightZ = 4.0f * cosf(m_time * 1.5f);
+
+    sb->lights[0].pos = { lightX, 3.0f, lightZ, 1.0f }; 
+    sb->lights[0].color = { 30.0f, 28.0f, 26.0f, 1.0f }; 
+
     m_context->Unmap(m_sceneBuffer.Get(), 0);
 
     float clear[4] = { 0.1f, 0.1f, 0.2f, 1 };
@@ -136,8 +145,8 @@ void Dx11App::Render() {
 
     ID3D11Buffer* cb[] = { m_geomBuffer.Get(), m_sceneBuffer.Get() };
     m_context->VSSetConstantBuffers(0, 2, cb);
-
     m_context->PSSetConstantBuffers(0, 1, m_geomBuffer.GetAddressOf());
+    m_context->PSSetConstantBuffers(1, 1, m_sceneBuffer.GetAddressOf()); 
 
     ID3D11SamplerState* samplers[] = { m_samplerState.Get() };
     m_context->PSSetSamplers(0, 1, samplers);
@@ -168,8 +177,10 @@ void Dx11App::Render() {
     m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    ID3D11ShaderResourceView* cubeRes[] = { m_cubeTextureView.Get() };
-    m_context->PSSetShaderResources(0, 1, cubeRes);
+
+    // Передаем 2 текстуры: диффузную и карту нормалей
+    ID3D11ShaderResourceView* cubeRes[] = { m_cubeTextureView.Get(), m_normalMapTextureView.Get() };
+    m_context->PSSetShaderResources(0, 2, cubeRes);
 
     m_context->OMSetDepthStencilState(m_opaqueDSState.Get(), 0);
     m_context->OMSetBlendState(nullptr, nullptr, 0xffffffff);
@@ -178,7 +189,11 @@ void Dx11App::Render() {
         if (obj.isTransparent) continue;
 
         XMMATRIX m = XMMatrixRotationY(m_time) * XMMatrixTranslationFromVector(obj.pos);
-        GeomBuffer gb; gb.m = XMMatrixTranspose(m); gb.size = { 1,0,0,0 }; gb.color = obj.color;
+        GeomBuffer gb;
+        gb.m = XMMatrixTranspose(m);
+        gb.size = { 1,0,0,0 };
+        gb.color = obj.color;
+        gb.shine = { 32.0f, 0, 0, 0 }; // Настройка силы блика
         m_context->UpdateSubresource(m_geomBuffer.Get(), 0, nullptr, &gb, 0, 0);
         m_context->DrawIndexed(36, 0, 0);
     }
@@ -221,7 +236,7 @@ void Dx11App::Render() {
     m_context->IASetInputLayout(m_inputLayout.Get());
     m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    m_context->PSSetShaderResources(0, 1, cubeRes);
+    m_context->PSSetShaderResources(0, 2, cubeRes); // ОБНОВЛЕНО: Используем 2 текстуры и здесь
 
     m_context->OMSetDepthStencilState(m_transparentDSState.Get(), 0);
 
@@ -232,7 +247,11 @@ void Dx11App::Render() {
         if (!obj.isTransparent) continue;
 
         XMMATRIX m = XMMatrixRotationY(m_time) * XMMatrixTranslationFromVector(obj.pos);
-        GeomBuffer gb; gb.m = XMMatrixTranspose(m); gb.size = { 1,0,0,0 }; gb.color = obj.color;
+        GeomBuffer gb;
+        gb.m = XMMatrixTranspose(m);
+        gb.size = { 1,0,0,0 };
+        gb.color = obj.color;
+        gb.shine = { 32.0f, 0, 0, 0 };
         m_context->UpdateSubresource(m_geomBuffer.Get(), 0, nullptr, &gb, 0, 0);
         m_context->DrawIndexed(36, 0, 0);
     }
@@ -246,14 +265,51 @@ void Dx11App::OnMouseMove(int dx, int dy) {
 
 bool Dx11App::InitCube() {
     Vertex v[] = {
-        {-1.0f, -1.0f, -1.0f, 0.0f, 1.0f}, {1.0f, -1.0f, -1.0f, 1.0f, 1.0f}, {1.0f,  1.0f, -1.0f, 1.0f, 0.0f}, {-1.0f,  1.0f, -1.0f, 0.0f, 0.0f},
-        {-1.0f, -1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, -1.0f, 1.0f, 0.0f, 1.0f}, {1.0f,  1.0f, 1.0f, 0.0f, 0.0f}, {-1.0f,  1.0f, 1.0f, 1.0f, 0.0f},
-        {-1.0f, 1.0f, -1.0f, 0.0f, 1.0f}, {1.0f, 1.0f, -1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f, 0.0f}, {-1.0f, 1.0f, 1.0f, 0.0f, 0.0f},
-        {-1.0f, -1.0f, -1.0f, 1.0f, 1.0f}, {1.0f, -1.0f, -1.0f, 0.0f, 1.0f}, {1.0f, -1.0f, 1.0f, 0.0f, 0.0f}, {-1.0f, -1.0f, 1.0f, 1.0f, 0.0f},
-        {-1.0f, -1.0f, 1.0f, 0.0f, 1.0f}, {-1.0f, -1.0f, -1.0f, 1.0f, 1.0f}, {-1.0f,  1.0f, -1.0f, 1.0f, 0.0f}, {-1.0f,  1.0f, 1.0f, 0.0f, 0.0f},
-        {1.0f, -1.0f, -1.0f, 0.0f, 1.0f}, {1.0f, -1.0f, 1.0f, 1.0f, 1.0f}, {1.0f,  1.0f, 1.0f, 1.0f, 0.0f}, {1.0f,  1.0f, -1.0f, 0.0f, 0.0f},
+        // Фронтальная грань (Z = -1) | Нормаль: (0,0,-1) | Касательная: (1,0,0)
+        {-1.0f, -1.0f, -1.0f, 0.0f, 1.0f,  0.0f, 0.0f, -1.0f,  1.0f, 0.0f, 0.0f},
+        {-1.0f,  1.0f, -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f,  1.0f, 0.0f, 0.0f},
+        { 1.0f,  1.0f, -1.0f, 1.0f, 0.0f,  0.0f, 0.0f, -1.0f,  1.0f, 0.0f, 0.0f},
+        { 1.0f, -1.0f, -1.0f, 1.0f, 1.0f,  0.0f, 0.0f, -1.0f,  1.0f, 0.0f, 0.0f},
+
+        // Задняя грань (Z = 1) | Нормаль: (0,0,1) | Касательная: (-1,0,0)
+        { 1.0f, -1.0f,  1.0f, 0.0f, 1.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f},
+        { 1.0f,  1.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f},
+        {-1.0f,  1.0f,  1.0f, 1.0f, 0.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f},
+        {-1.0f, -1.0f,  1.0f, 1.0f, 1.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f},
+
+        // Верхняя грань (Y = 1) | Нормаль: (0,1,0) | Касательная: (1,0,0)
+        {-1.0f,  1.0f, -1.0f, 0.0f, 1.0f,  0.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
+        {-1.0f,  1.0f,  1.0f, 0.0f, 0.0f,  0.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
+        { 1.0f,  1.0f,  1.0f, 1.0f, 0.0f,  0.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
+        { 1.0f,  1.0f, -1.0f, 1.0f, 1.0f,  0.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
+
+        // Нижняя грань (Y = -1) | Нормаль: (0,-1,0) | Касательная: (1,0,0)
+        {-1.0f, -1.0f,  1.0f, 0.0f, 1.0f,  0.0f, -1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
+        {-1.0f, -1.0f, -1.0f, 0.0f, 0.0f,  0.0f, -1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
+        { 1.0f, -1.0f, -1.0f, 1.0f, 0.0f,  0.0f, -1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
+        { 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,  0.0f, -1.0f, 0.0f,  1.0f, 0.0f, 0.0f},
+
+        // Левая грань (X = -1) | Нормаль: (-1,0,0) | Касательная: (0,0,-1)
+        {-1.0f, -1.0f,  1.0f, 0.0f, 1.0f,  -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f},
+        {-1.0f,  1.0f,  1.0f, 0.0f, 0.0f,  -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f},
+        {-1.0f,  1.0f, -1.0f, 1.0f, 0.0f,  -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f},
+        {-1.0f, -1.0f, -1.0f, 1.0f, 1.0f,  -1.0f, 0.0f, 0.0f,  0.0f, 0.0f, -1.0f},
+
+        // Правая грань (X = 1) | Нормаль: (1,0,0) | Касательная: (0,0,1)
+        { 1.0f, -1.0f, -1.0f, 0.0f, 1.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
+        { 1.0f,  1.0f, -1.0f, 0.0f, 0.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
+        { 1.0f,  1.0f,  1.0f, 1.0f, 0.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
+        { 1.0f, -1.0f,  1.0f, 1.0f, 1.0f,  1.0f, 0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
     };
-    USHORT i[] = { 0,1,2, 0,2,3, 4,6,5, 4,7,6, 8,9,10, 8,10,11, 12,14,13, 12,15,14, 16,17,18, 16,18,19, 20,21,22, 20,22,23 };
+
+    USHORT i[] = {
+        0, 1, 2, 0, 2, 3,       // Front
+        4, 5, 6, 4, 6, 7,       // Back
+        8, 9, 10, 8, 10, 11,    // Top
+        12, 13, 14, 12, 14, 15, // Bottom
+        16, 17, 18, 16, 18, 19, // Left
+        20, 21, 22, 20, 22, 23  // Right
+    };
 
     D3D11_BUFFER_DESC bd{}; bd.Usage = D3D11_USAGE_IMMUTABLE; bd.BindFlags = D3D11_BIND_VERTEX_BUFFER; bd.ByteWidth = sizeof(v);
     D3D11_SUBRESOURCE_DATA sd{}; sd.pSysMem = v; m_device->CreateBuffer(&bd, &sd, m_vertexBuffer.GetAddressOf());
@@ -273,9 +329,11 @@ bool Dx11App::InitCube() {
 
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 20, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0}
     };
-    m_device->CreateInputLayout(layout, 2, vs->GetBufferPointer(), vs->GetBufferSize(), m_inputLayout.GetAddressOf());
+    m_device->CreateInputLayout(layout, 4, vs->GetBufferPointer(), vs->GetBufferSize(), m_inputLayout.GetAddressOf());
 
     bd = {}; bd.Usage = D3D11_USAGE_DEFAULT; bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; bd.ByteWidth = sizeof(GeomBuffer); m_device->CreateBuffer(&bd, nullptr, m_geomBuffer.GetAddressOf());
     bd.Usage = D3D11_USAGE_DYNAMIC; bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; bd.ByteWidth = sizeof(SceneBuffer); m_device->CreateBuffer(&bd, nullptr, m_sceneBuffer.GetAddressOf());
@@ -378,14 +436,41 @@ bool Dx11App::LoadTextures() {
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {}; srvDesc.Format = texDesc.fmt; srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D; srvDesc.Texture2D.MipLevels = desc.MipLevels;
     m_device->CreateShaderResourceView(pTexture.Get(), &srvDesc, m_cubeTextureView.GetAddressOf());
 
+    // Загрузка карты нормалей
+    TextureDesc normalDesc;
+    if (LoadDDS(L"Pug_normal.dds", normalDesc, false)) { // 
+        D3D11_TEXTURE2D_DESC descNormal = {};
+        descNormal.Format = normalDesc.fmt; descNormal.ArraySize = 1; descNormal.MipLevels = normalDesc.mipmapsCount;
+        descNormal.Usage = D3D11_USAGE_IMMUTABLE; descNormal.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        descNormal.SampleDesc.Count = 1; descNormal.Height = normalDesc.height; descNormal.Width = normalDesc.width;
+
+        UINT32 pitchNorm = DivUp(descNormal.Width, 4u) * GetBytesPerBlock(descNormal.Format);
+        std::vector<D3D11_SUBRESOURCE_DATA> dataNorm(descNormal.MipLevels); const char* pSrcDataNorm = (const char*)normalDesc.pData;
+        UINT32 bwNorm = DivUp(descNormal.Width, 4u), bhNorm = DivUp(descNormal.Height, 4u);
+
+        for (UINT32 i = 0; i < descNormal.MipLevels; i++) {
+            dataNorm[i].pSysMem = pSrcDataNorm; dataNorm[i].SysMemPitch = pitchNorm; pSrcDataNorm += pitchNorm * bhNorm;
+            bhNorm = (std::max)(1u, bhNorm / 2); bwNorm = (std::max)(1u, bwNorm / 2); pitchNorm = bwNorm * GetBytesPerBlock(descNormal.Format);
+        }
+
+        Microsoft::WRL::ComPtr<ID3D11Texture2D> pNormalTexture;
+        m_device->CreateTexture2D(&descNormal, dataNorm.data(), pNormalTexture.GetAddressOf());
+        delete[](char*)normalDesc.pData;
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC srvDescNorm = {};
+        srvDescNorm.Format = normalDesc.fmt;
+        srvDescNorm.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        srvDescNorm.Texture2D.MipLevels = descNormal.MipLevels;
+        m_device->CreateShaderResourceView(pNormalTexture.Get(), &srvDescNorm, m_normalMapTextureView.GetAddressOf());
+    }
+    else {
+        MessageBoxW(nullptr, L"Внимание: Файл Pug_normal.dds не найден. Освещение не будет работать правильно.", L"Предупреждение", MB_OK);
+    }
+
+
     // --- СКАЙБОКС ---
-    const wchar_t* CubemapNames[6] = { 
-        L"right.dds",   // +X
-    L"left.dds",    // -X
-    L"top.dds",     // +Y
-    L"bottom.dds",  // -Y
-    L"front.dds",   // +Z
-    L"back.dds"     // -Z 
+    const wchar_t* CubemapNames[6] = {
+        L"right.dds", L"left.dds", L"top.dds", L"bottom.dds", L"front.dds", L"back.dds"
     };
     TextureDesc cubeDescs[6];
     for (int i = 0; i < 6; i++) {
@@ -420,7 +505,7 @@ void Dx11App::UpdateMatrices(float t) {
     float w = tanf(fov / 2.0f) * nearPlane * 2.0f, h = ((float)m_height / m_width) * w;
     float R = sqrtf(nearPlane * nearPlane + (w / 2.0f) * (w / 2.0f) + (h / 2.0f) * (h / 2.0f)) * 1.1f;
 
-    GeomBuffer gb; gb.m = XMMatrixTranspose(m); gb.size = { R, 0, 0, 0 };
+    GeomBuffer gb; gb.m = XMMatrixTranspose(m); gb.size = { R, 0, 0, 0 }; gb.shine = { 32.0f, 0, 0, 0 };
     m_context->UpdateSubresource(m_geomBuffer.Get(), 0, nullptr, &gb, 0, 0);
 
     D3D11_MAPPED_SUBRESOURCE mapped; m_context->Map(m_sceneBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
