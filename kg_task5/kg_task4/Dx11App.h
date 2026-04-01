@@ -35,11 +35,25 @@ struct Light {
     DirectX::XMFLOAT4 color;
 };
 
+// Обычный буфер геометрии (оставлен для скайбокса)
 struct GeomBuffer {
     DirectX::XMMATRIX m;
     DirectX::XMFLOAT4 size;
     DirectX::XMFLOAT4 color;
     DirectX::XMFLOAT4 shine;
+};
+
+// Буфер геометрии для ИНСТАНСИНГА
+struct GeomBufferInst {
+    DirectX::XMMATRIX m[100];
+    DirectX::XMFLOAT4 size[100];
+    DirectX::XMFLOAT4 color[100];
+    DirectX::XMFLOAT4 shine[100];
+};
+
+// Буфер видимых индексов
+struct GeomBufferInstVis {
+    DirectX::XMINT4 ids[100];
 };
 
 struct SceneBuffer {
@@ -71,6 +85,7 @@ private:
     bool LoadDDS(const wchar_t* filename, TextureDesc& desc, bool isCubemap = false);
     UINT32 DivUp(UINT32 a, UINT32 b);
     UINT32 GetBytesPerBlock(DXGI_FORMAT fmt);
+    bool IsBoxInside(const DirectX::XMFLOAT4 frustum[6], const DirectX::XMFLOAT3& bbMin, const DirectX::XMFLOAT3& bbMax);
 
 private:
     Microsoft::WRL::ComPtr<ID3D11Device> m_device;
@@ -79,6 +94,13 @@ private:
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_rtv;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_dsv;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_depth;
+
+    // Ресурсы для постпроцессинга
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_postProcessTex;
+    Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_postProcessRTV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_postProcessSRV;
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_postVS;
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> m_postPS;
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_vertexBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_indexBuffer;
@@ -96,6 +118,8 @@ private:
     int m_skyboxIndexCount = 0;
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_geomBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_geomBufferInst;    // Инстансинг
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_geomBufferInstVis; // Frustum Culling
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_sceneBuffer;
 
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_cubeTextureView;
