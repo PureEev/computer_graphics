@@ -117,33 +117,34 @@ bool Dx11App::IsBoxInside(const DirectX::XMFLOAT4 frustum[6], const DirectX::XMF
     return true;
 }
 
+// Реализация чтения запросов GPU
+void Dx11App::ReadQueries() {
+    D3D11_QUERY_DATA_PIPELINE_STATISTICS stats;
+    while (m_lastCompletedFrame < m_curFrame) {
+        HRESULT result = m_context->GetData(m_queries[m_lastCompletedFrame % 10].Get(), &stats, sizeof(D3D11_QUERY_DATA_PIPELINE_STATISTICS), 0);
+        if (result == S_OK) {
+            m_gpuVisibleInstances = (int)stats.IAPrimitives / 12; // 12 треугольников на куб
+            ++m_lastCompletedFrame;
+        }
+        else {
+            break;
+        }
+    }
+}
+
 void Dx11App::Render() {
     static auto start = std::chrono::high_resolution_clock::now();
     m_time = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - start).count();
+
 
     XMMATRIX camRot = XMMatrixRotationRollPitchYaw(m_camPitch, m_camYaw, 0);
     m_cameraPos = XMVector3TransformCoord(XMVectorSet(0, 5, -20, 1), camRot);
 
     XMMATRIX v = XMMatrixLookAtLH(m_cameraPos, XMVectorZero(), XMVectorSet(0, 1, 0, 0));
     XMMATRIX p = XMMatrixPerspectiveFovLH(XM_PI / 3.0f, (float)m_width / m_height, 100.0f, 0.1f);
-
-    D3D11_MAPPED_SUBRESOURCE mapped;
-    m_context->Map(m_sceneBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
-    SceneBuffer* sb = (SceneBuffer*)mapped.pData;
-    sb->vp = XMMatrixTranspose(v * p);
-    XMStoreFloat4(&sb->cameraPos, m_cameraPos);
-    sb->ambientColor = { 0.15f, 0.15f, 0.2f, 1.0f }; sb->lightCount = { 1, 0, 0, 0 };
-
-    float lightX = 4.0f * sinf(m_time * 1.5f); float lightZ = 4.0f * cosf(m_time * 1.5f);
-    sb->lights[0].pos = { lightX, 5.0f, lightZ, 1.0f }; sb->lights[0].color = { 30.0f, 28.0f, 26.0f, 1.0f };
-    m_context->Unmap(m_sceneBuffer.Get(), 0);
-
-    float clear[4] = { 0.1f, 0.1f, 0.2f, 1 };
-    m_context->OMSetRenderTargets(1, m_postProcessRTV.GetAddressOf(), m_dsv.Get());
-    m_context->ClearRenderTargetView(m_postProcessRTV.Get(), clear);
-    m_context->ClearDepthStencilView(m_dsv.Get(), D3D11_CLEAR_DEPTH, 0.0f, 0);
-
     XMMATRIX vpMatrix = v * p;
+
+    // Считаем Frustum на CPU
     XMFLOAT4X4 vpF; XMStoreFloat4x4(&vpF, vpMatrix);
     XMFLOAT4 frustum[6] = {
         { vpF._14 + vpF._11, vpF._24 + vpF._21, vpF._34 + vpF._31, vpF._44 + vpF._41 },
@@ -159,11 +160,32 @@ void Dx11App::Render() {
         frustum[i].x /= len; frustum[i].y /= len; frustum[i].z /= len; frustum[i].w /= len;
     }
 
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    m_context->Map(m_sceneBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    SceneBuffer* sb = (SceneBuffer*)mapped.pData;
+    sb->vp = XMMatrixTranspose(vpMatrix);
+    XMStoreFloat4(&sb->cameraPos, m_cameraPos);
+    sb->ambientColor = { 0.15f, 0.15f, 0.2f, 1.0f }; sb->lightCount = { 1, 0, 0, 0 };
+
+    float lightX = 4.0f * sinf(m_time * 1.5f); float lightZ = 4.0f * cosf(m_time * 1.5f);
+    sb->lights[0].pos = { lightX, 5.0f, lightZ, 1.0f }; sb->lights[0].color = { 30.0f, 28.0f, 26.0f, 1.0f };
+
+    // Передаем Frustum в SceneBuffer для Compute Shader
+    for (int i = 0; i < 6; i++) {
+        sb->frustum[i] = frustum[i];
+    }
+    m_context->Unmap(m_sceneBuffer.Get(), 0);
+
+    float clear[4] = { 0.1f, 0.1f, 0.2f, 1 };
+    m_context->OMSetRenderTargets(1, m_postProcessRTV.GetAddressOf(), m_dsv.Get());
+    m_context->ClearRenderTargetView(m_postProcessRTV.Get(), clear);
+    m_context->ClearDepthStencilView(m_dsv.Get(), D3D11_CLEAR_DEPTH, 0.0f, 0);
+
     struct RenderObject { XMVECTOR pos; XMFLOAT4 color; bool isTransparent; };
     std::vector<RenderObject> objects;
     for (int i = -2; i <= 2; i++) {
         for (int j = -2; j <= 2; j++) {
-            objects.push_back({ XMVectorSet(i * 3.0f, 0, j * 3.0f, 1), {1,1,1,1}, false });
+            objects.push_back({ XMVectorSet(i * 6.0f, 0, j * 6.0f, 1), {1,1,1,1}, false });
         }
     }
     objects.push_back({ XMVectorSet(0, 2, -2, 1), {1,1,1,0.5f}, true });
@@ -191,32 +213,92 @@ void Dx11App::Render() {
 
     GeomBufferInst instData = {};
     GeomBufferInstVis visData = {};
-    int visibleCount = 0;
+    CullParams cp = {};
     int totalIndex = 0;
+    int visibleCountCPU = 0;
 
+    // Подготовка данных для всех объектов
     for (const auto& obj : objects) {
         if (obj.isTransparent || totalIndex >= 100) continue;
 
         XMMATRIX m = XMMatrixRotationY(m_time * (1.0f + totalIndex * 0.1f)) * XMMatrixTranslationFromVector(obj.pos);
         XMFLOAT3 posF; XMStoreFloat3(&posF, obj.pos);
-        XMFLOAT3 bbMin(posF.x - 1.8f, posF.y - 1.8f, posF.z - 1.8f);
-        XMFLOAT3 bbMax(posF.x + 1.8f, posF.y + 1.8f, posF.z + 1.8f);
 
         instData.instances[totalIndex].m = XMMatrixTranspose(m);
         instData.instances[totalIndex].color = obj.color;
         instData.instances[totalIndex].shine = { 32.0f, 0, 0, 0 };
 
-        if (IsBoxInside(frustum, bbMin, bbMax)) {
-            visData.ids[visibleCount].x = totalIndex;
-            visibleCount++;
+        // Подготовка AABB для куллинга
+        cp.bbMin[totalIndex] = { posF.x - 1.8f, posF.y - 1.8f, posF.z - 1.8f, 1.0f };
+        cp.bbMax[totalIndex] = { posF.x + 1.8f, posF.y + 1.8f, posF.z + 1.8f, 1.0f };
+
+        // Сохраняем расчет на CPU на случай fallback
+        if (IsBoxInside(frustum, { posF.x - 1.8f, posF.y - 1.8f, posF.z - 1.8f }, { posF.x + 1.8f, posF.y + 1.8f, posF.z + 1.8f })) {
+            visData.ids[visibleCountCPU].x = totalIndex;
+            visibleCountCPU++;
         }
         totalIndex++;
     }
+    cp.numShapes.x = totalIndex;
 
-    if (visibleCount > 0) {
-        m_context->UpdateSubresource(m_geomBufferInst.Get(), 0, nullptr, &instData, 0, 0);
-        m_context->UpdateSubresource(m_geomBufferInstVis.Get(), 0, nullptr, &visData, 0, 0);
-        m_context->DrawIndexedInstanced(36, visibleCount, 0, 0, 0);
+    m_context->UpdateSubresource(m_geomBufferInst.Get(), 0, nullptr, &instData, 0, 0);
+
+    if (totalIndex > 0) {
+        if (m_computeCull) {
+            D3D11_MAPPED_SUBRESOURCE mappedCull;
+            m_context->Map(m_cullParamsCB.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedCull);
+            memcpy(mappedCull.pData, &cp, sizeof(CullParams));
+            m_context->Unmap(m_cullParamsCB.Get(), 0);
+
+            // Очищаем количество инстансов (InstanceCount = 0)
+            D3D11_DRAW_INDEXED_INSTANCED_INDIRECT_ARGS args = {};
+            args.IndexCountPerInstance = 36;
+            args.InstanceCount = 0;
+            args.StartIndexLocation = 0;
+            args.BaseVertexLocation = 0;
+            args.StartInstanceLocation = 0;
+            m_context->UpdateSubresource(m_indirectArgsSrc.Get(), 0, nullptr, &args, 0, 0);
+
+            // Устанавливаем ресурсы для Compute Shader
+            ID3D11Buffer* constBuffers[2] = { m_sceneBuffer.Get(), m_cullParamsCB.Get() };
+            m_context->CSSetConstantBuffers(0, 2, constBuffers);
+
+            ID3D11UnorderedAccessView* uavBuffers[2] = { m_indirectArgsUAV.Get(), m_geomBufferInstVisGPU_UAV.Get() };
+            m_context->CSSetUnorderedAccessViews(0, 2, uavBuffers, nullptr);
+
+            m_context->CSSetShader(m_cullCS.Get(), nullptr, 0);
+
+            UINT groupNumber = DivUp(totalIndex, 64u);
+            m_context->Dispatch(groupNumber, 1, 1);
+
+            // Очищаем UAV 
+            ID3D11UnorderedAccessView* nullUAVs[2] = { nullptr, nullptr };
+            m_context->CSSetUnorderedAccessViews(0, 2, nullUAVs, nullptr);
+
+            // Копируем результаты
+            m_context->CopyResource(m_geomBufferInstVis.Get(), m_geomBufferInstVisGPU.Get());
+            m_context->CopyResource(m_indirectArgs.Get(), m_indirectArgsSrc.Get());
+
+            // Отрисовка с запросами Pipeline Statistics
+            m_context->Begin(m_queries[m_curFrame % 10].Get());
+            m_context->DrawIndexedInstancedIndirect(m_indirectArgs.Get(), 0);
+            m_context->End(m_queries[m_curFrame % 10].Get());
+
+            ++m_curFrame;
+            ReadQueries(); // Читаем результаты
+
+            char buffer[256];
+            sprintf_s(buffer, "GPU Visible Instances: %d\n", m_gpuVisibleInstances);
+            OutputDebugStringA(buffer);
+
+        }
+        else {
+            // CPU fallback
+            if (visibleCountCPU > 0) {
+                m_context->UpdateSubresource(m_geomBufferInstVis.Get(), 0, nullptr, &visData, 0, 0);
+                m_context->DrawIndexedInstanced(36, visibleCountCPU, 0, 0, 0);
+            }
+        }
     }
 
     // --- Skybox ---
@@ -354,7 +436,60 @@ bool Dx11App::InitCube() {
     bd = {}; bd.Usage = D3D11_USAGE_DEFAULT; bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
     bd.ByteWidth = sizeof(GeomBuffer); m_device->CreateBuffer(&bd, nullptr, m_geomBuffer.GetAddressOf());
     bd.ByteWidth = sizeof(GeomBufferInst); m_device->CreateBuffer(&bd, nullptr, m_geomBufferInst.GetAddressOf());
-    bd.ByteWidth = sizeof(GeomBufferInstVis); m_device->CreateBuffer(&bd, nullptr, m_geomBufferInstVis.GetAddressOf());
+
+    // --- Инициализация для GPU Culling и Queries ---
+
+    // Компиляция вычислительного шейдера
+    if (FAILED(D3DCompileFromFile(L"cull.cs.hlsl", nullptr, nullptr, "cs", "cs_5_0", 0, 0, vs.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) {
+        MessageBoxW(nullptr, L"Не удалось скомпилировать cull.cs.hlsl! Убедитесь, что файл существует.", L"Ошибка", MB_OK); return false;
+    }
+    m_device->CreateComputeShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, m_cullCS.GetAddressOf());
+
+    // Буфер параметров куллинга
+    bd = {}; bd.Usage = D3D11_USAGE_DYNAMIC; bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; bd.ByteWidth = sizeof(CullParams);
+    m_device->CreateBuffer(&bd, nullptr, m_cullParamsCB.GetAddressOf());
+
+    // Буфер для indirect параметров (Source + UAV)
+    D3D11_BUFFER_DESC idesc = {};
+    idesc.ByteWidth = sizeof(D3D11_DRAW_INDEXED_INSTANCED_INDIRECT_ARGS);
+    idesc.Usage = D3D11_USAGE_DEFAULT;
+    idesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+    idesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    idesc.StructureByteStride = sizeof(UINT);
+    m_device->CreateBuffer(&idesc, nullptr, m_indirectArgsSrc.GetAddressOf());
+    m_device->CreateUnorderedAccessView(m_indirectArgsSrc.Get(), nullptr, m_indirectArgsUAV.GetAddressOf());
+
+    // Целевой буфер для Indirect Draw
+    idesc.BindFlags = 0;
+    idesc.MiscFlags = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS;
+    idesc.StructureByteStride = 0;
+    m_device->CreateBuffer(&idesc, nullptr, m_indirectArgs.GetAddressOf());
+
+    // Буфер для индексов (GPU)
+    D3D11_BUFFER_DESC visDesc = {};
+    visDesc.ByteWidth = sizeof(GeomBufferInstVis);
+    visDesc.Usage = D3D11_USAGE_DEFAULT;
+    visDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+    visDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    visDesc.StructureByteStride = sizeof(DirectX::XMINT4);
+    m_device->CreateBuffer(&visDesc, nullptr, m_geomBufferInstVisGPU.GetAddressOf());
+    m_device->CreateUnorderedAccessView(m_geomBufferInstVisGPU.Get(), nullptr, m_geomBufferInstVisGPU_UAV.GetAddressOf());
+
+    // Буфер для индексов (CPU/Render)
+    visDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    visDesc.MiscFlags = 0;
+    visDesc.StructureByteStride = 0;
+    m_device->CreateBuffer(&visDesc, nullptr, m_geomBufferInstVis.GetAddressOf());
+
+    // Инициализация запросов Pipeline Statistics
+    D3D11_QUERY_DESC qdesc;
+    qdesc.Query = D3D11_QUERY_PIPELINE_STATISTICS;
+    qdesc.MiscFlags = 0;
+    for (int i = 0; i < 10; ++i) {
+        m_device->CreateQuery(&qdesc, &m_queries[i]);
+    }
+
     bd.Usage = D3D11_USAGE_DYNAMIC; bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE; bd.ByteWidth = sizeof(SceneBuffer); m_device->CreateBuffer(&bd, nullptr, m_sceneBuffer.GetAddressOf());
 
     D3D11_DEPTH_STENCIL_DESC dsDesc{};
@@ -423,7 +558,7 @@ bool Dx11App::InitSkybox() {
 }
 
 bool Dx11App::LoadTextures() {
-    
+
     TextureDesc texDesc;
     if (!LoadDDS(L"Pug.dds", texDesc, false)) {
         return false;

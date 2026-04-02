@@ -63,6 +63,14 @@ struct SceneBuffer {
     DirectX::XMINT4 lightCount;
     DirectX::XMFLOAT4 ambientColor;
     Light lights[10];
+    DirectX::XMFLOAT4 frustum[6]; 
+};
+
+// Структура параметров для Compute Shader
+struct CullParams {
+    DirectX::XMUINT4 numShapes;
+    DirectX::XMFLOAT4 bbMin[100];
+    DirectX::XMFLOAT4 bbMax[100];
 };
 
 class Dx11App
@@ -71,6 +79,7 @@ public:
     bool Init(HWND hwnd, int width, int height);
     void Cleanup();
     void Render();
+    void ReadQueries(); // Метод для чтения статистики из GPU
     void OnResize(int width, int height);
     void OnMouseMove(int dx, int dy);
 
@@ -131,6 +140,21 @@ private:
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_opaqueDSState;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> m_transparentDSState;
     Microsoft::WRL::ComPtr<ID3D11BlendState> m_alphaBlendState;
+
+    // --- Добавления для GPU Culling и Queries ---
+    Microsoft::WRL::ComPtr<ID3D11ComputeShader> m_cullCS;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_cullParamsCB;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_indirectArgsSrc;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_indirectArgsUAV;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_indirectArgs;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_geomBufferInstVisGPU;
+    Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> m_geomBufferInstVisGPU_UAV;
+
+    Microsoft::WRL::ComPtr<ID3D11Query> m_queries[10];
+    uint64_t m_curFrame = 0;
+    uint64_t m_lastCompletedFrame = 0;
+    int m_gpuVisibleInstances = 0;
+    bool m_computeCull = true; // Флаг включения GPU Culling
 
     D3D11_VIEWPORT m_viewport{};
     float m_time = 0;
