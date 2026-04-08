@@ -5,6 +5,8 @@
 #include <fstream>
 #include <cstdint>
 #include <cmath>
+#include <windows.h>
+#include <string>
 
 #define DDS_MAGIC 0x20534444
 
@@ -218,6 +220,9 @@ void Dx11App::Render() {
         m_context->UpdateSubresource(m_geomBufferInstVis.Get(), 0, nullptr, &visData, 0, 0);
         m_context->DrawIndexedInstanced(36, visibleCount, 0, 0, 0);
     }
+
+    std::string msg = "Visible: " + std::to_string(visibleCount) + "\n";
+    OutputDebugStringA(msg.c_str());
 
     // --- Skybox ---
     UINT strideSkybox = sizeof(SkyboxVertex);
