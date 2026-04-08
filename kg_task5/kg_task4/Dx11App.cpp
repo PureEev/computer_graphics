@@ -163,7 +163,7 @@ void Dx11App::Render() {
     std::vector<RenderObject> objects;
     for (int i = -2; i <= 2; i++) {
         for (int j = -2; j <= 2; j++) {
-            objects.push_back({ XMVectorSet(i * 3.0f, 0, j * 3.0f, 1), {1,1,1,1}, false });
+            objects.push_back({ XMVectorSet(i * 6.0f, 0, j * 6.0f, 1), {1,1,1,1}, false });
         }
     }
     objects.push_back({ XMVectorSet(0, 2, -2, 1), {1,1,1,0.5f}, true });
@@ -273,7 +273,7 @@ void Dx11App::Render() {
         m_context->DrawIndexedInstanced(36, 1, 0, 0, 0);
     }
 
-    // --- Postprocess (Ñåïèÿ) ---
+    // --- Postprocess (Ã‘Ã¥Ã¯Ã¨Ã¿) ---
     m_context->OMSetRenderTargets(1, m_rtv.GetAddressOf(), nullptr);
     m_context->VSSetShader(m_postVS.Get(), nullptr, 0);
     m_context->PSSetShader(m_postPS.Get(), nullptr, 0);
@@ -397,10 +397,10 @@ bool Dx11App::InitSkybox() {
 
     Microsoft::WRL::ComPtr<ID3DBlob> vs, ps, err;
     if (FAILED(D3DCompileFromFile(L"skybox.vs.hlsl", nullptr, nullptr, "vs", "vs_5_0", 0, 0, vs.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) {
-        MessageBoxW(nullptr, L"Íå óäàëîñü ñêîìïèëèðîâàòü skybox.vs.hlsl!", L"Îøèáêà", MB_OK); return false;
+        MessageBoxW(nullptr, L"ÃÃ¥ Ã³Ã¤Ã Ã«Ã®Ã±Ã¼ Ã±ÃªÃ®Ã¬Ã¯Ã¨Ã«Ã¨Ã°Ã®Ã¢Ã Ã²Ã¼ skybox.vs.hlsl!", L"ÃŽÃ¸Ã¨Ã¡ÃªÃ ", MB_OK); return false;
     }
     if (FAILED(D3DCompileFromFile(L"skybox.ps.hlsl", nullptr, nullptr, "ps", "ps_5_0", 0, 0, ps.ReleaseAndGetAddressOf(), err.ReleaseAndGetAddressOf()))) {
-        MessageBoxW(nullptr, L"Íå óäàëîñü ñêîìïèëèðîâàòü skybox.ps.hlsl!", L"Îøèáêà", MB_OK); return false;
+        MessageBoxW(nullptr, L"ÃÃ¥ Ã³Ã¤Ã Ã«Ã®Ã±Ã¼ Ã±ÃªÃ®Ã¬Ã¯Ã¨Ã«Ã¨Ã°Ã®Ã¢Ã Ã²Ã¼ skybox.ps.hlsl!", L"ÃŽÃ¸Ã¨Ã¡ÃªÃ ", MB_OK); return false;
     }
 
     m_device->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, m_skyboxVS.GetAddressOf());
