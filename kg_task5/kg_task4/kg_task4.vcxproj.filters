@@ -34,6 +34,7 @@
     <FxCompile Include="skybox.ps.hlsl" />
     <FxCompile Include="post.vs.hlsl" />
     <FxCompile Include="post.ps.hlsl" />
+    <FxCompile Include="cull.cs.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="Pug.dds">
